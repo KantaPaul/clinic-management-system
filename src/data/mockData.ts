@@ -72,6 +72,13 @@ export const initialUsers: User[] = [
     role: 'accountant',
     avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
   },
+  {
+    id: 'USR-06',
+    name: 'Tanvir Hossain (PharmD)',
+    email: 'dispensary@carepointclinic.com.bd',
+    role: 'dispenser',
+    avatarUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80',
+  },
 ];
 
 export const initialDoctors: Doctor[] = [
@@ -377,6 +384,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Analgesic / Antipyretic',
     defaultSchedule: '1+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023451',
   },
   {
     id: 'MED-02',
@@ -388,6 +396,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Proton Pump Inhibitor (Anti-ulcerant)',
     defaultSchedule: '1+0+1',
     defaultMealTiming: 'before_meal',
+    barcode: '894110023452',
   },
   {
     id: 'MED-03',
@@ -399,6 +408,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Proton Pump Inhibitor',
     defaultSchedule: '1+0+1',
     defaultMealTiming: 'before_meal',
+    barcode: '894110023453',
   },
   {
     id: 'MED-04',
@@ -410,6 +420,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Cephalosporin Antibiotic',
     defaultSchedule: '1+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023454',
   },
   {
     id: 'MED-05',
@@ -421,6 +432,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Leukotriene Receptor Antagonist (Anti-asthmatic)',
     defaultSchedule: '0+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023455',
   },
   {
     id: 'MED-06',
@@ -432,6 +444,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Oral Anti-diabetic (Biguanide)',
     defaultSchedule: '1+0+1',
     defaultMealTiming: 'with_meal',
+    barcode: '894110023456',
   },
   {
     id: 'MED-07',
@@ -443,6 +456,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Calcium Channel Blocker (Anti-hypertensive)',
     defaultSchedule: '0+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023457',
   },
   {
     id: 'MED-08',
@@ -454,6 +468,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Beta Blocker (Cardiovascular)',
     defaultSchedule: '1+0+0',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023458',
   },
   {
     id: 'MED-09',
@@ -465,6 +480,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Antihistamine',
     defaultSchedule: '0+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023459',
   },
   {
     id: 'MED-10',
@@ -476,6 +492,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Antihistamine',
     defaultSchedule: '0+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023460',
   },
   {
     id: 'MED-11',
@@ -487,6 +504,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Statin (Lipid-lowering)',
     defaultSchedule: '0+0+1',
     defaultMealTiming: 'after_meal',
+    barcode: '894110023461',
   },
   {
     id: 'MED-12',
@@ -498,6 +516,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Thyroid Hormone Replacement',
     defaultSchedule: '1+0+0',
     defaultMealTiming: 'empty_stomach',
+    barcode: '894110023462',
   },
   {
     id: 'MED-13',
@@ -509,6 +528,7 @@ export const initialMedicines: MedicineCatalogItem[] = [
     category: 'Macrolide Antibiotic',
     defaultSchedule: '1+0+0',
     defaultMealTiming: 'before_meal',
+    barcode: '894110023463',
   },
   {
     id: 'MED-14',

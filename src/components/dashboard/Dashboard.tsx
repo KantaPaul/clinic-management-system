@@ -13,8 +13,10 @@ import {
   CheckCircle2,
   Phone,
   DoorOpen,
+  Pill,
 } from 'lucide-react';
 import { Appointment } from '../../types';
+import { DispensaryStockAlerts } from './DispensaryStockAlerts';
 
 interface DashboardProps {
   onOpenPatientModal: () => void;
@@ -41,6 +43,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     startConsultation,
     updateAppointmentStatus,
     language,
+    batches,
+    medicines,
   } = useClinic();
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -70,6 +74,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
       if (tx.method === 'card') cardTotal += tx.amount;
     });
   });
+
+  // Calculate Dispensary Stock Health & Low Threshold Counts
+  const totalStockUnits = (batches || []).reduce(
+    (sum, b) => sum + (b.status === 'active' ? b.currentQuantity : 0),
+    0
+  );
+
+  const lowStockCount = (medicines || []).filter(med => {
+    const valid = (batches || []).filter(
+      b => b.medicineId === med.id &&
+           b.status !== 'expired' &&
+           b.status !== 'quarantined' &&
+           b.status !== 'blocked' &&
+           b.expiryDate >= todayStr
+    );
+    const total = valid.reduce((sum, b) => sum + b.currentQuantity, 0);
+    return total < (med.reorderLevelBaseUnits || 50);
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -122,11 +144,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span>{t.dashboard.createInvoice}</span>
             </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('dispensary')}
+            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-all shadow-md flex items-center space-x-1.5"
+          >
+            <span>💊 Dispensary FEFO</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('researchPlan')}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold transition-all border border-cyan-800/60 shadow-md flex items-center space-x-1.5"
+          >
+            <span>📋 Plan 0a82bd6e Specs</span>
+          </button>
         </div>
       </div>
 
-      {/* 4 Core KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Dispensary Low-Stock Visual Indicator & Warning Drawer */}
+      <DispensaryStockAlerts />
+
+      {/* 5 Core KPI Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Today's Appointments */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
@@ -194,6 +233,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-700 flex items-center justify-center">
             <AlertCircle className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Dispensary Stock Buffer & Safety Status */}
+        <div
+          onClick={() => setActiveTab('dispensary')}
+          className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-purple-300 hover:shadow-sm transition-all"
+        >
+          <div>
+            <p className="text-xs font-medium text-slate-500">
+              {language === 'bn' ? 'ডিসপেনসারি মজুত' : 'Dispensary Buffer'}
+            </p>
+            <h3 className="text-2xl font-bold text-purple-700 mt-1 font-mono">
+              {totalStockUnits} <span className="text-xs text-slate-400 font-normal">u</span>
+            </h3>
+            <div className="flex items-center space-x-1 mt-2 text-[11px]">
+              {lowStockCount > 0 ? (
+                <span className="text-amber-700 font-bold flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-amber-500" />
+                  <span>{lowStockCount} {language === 'bn' ? 'টি কম মজুত' : 'low stock'}</span>
+                </span>
+              ) : (
+                <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                  <span>{language === 'bn' ? 'মজুত স্বাভাবিক' : 'Stock healthy'}</span>
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center">
+            <Pill className="w-6 h-6" />
           </div>
         </div>
       </div>

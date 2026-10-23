@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useClinic } from '../../context/ClinicContext';
 import { Prescription, Doctor, Patient } from '../../types';
-import { Printer, X, Download, ShieldCheck, Check, Sparkles } from 'lucide-react';
+import { Printer, X, Download, ShieldCheck, Check, Sparkles, Pill } from 'lucide-react';
 
 interface PrescriptionPrintModalProps {
   prescription: Prescription;
@@ -16,7 +16,7 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
   patient,
   onClose,
 }) => {
-  const { settings, language } = useClinic();
+  const { settings, language, setActiveTab } = useClinic();
   const [printSize, setPrintSize] = useState<'a4' | 'a5'>('a4');
 
   const handlePrint = () => {
@@ -69,6 +69,16 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                onClose();
+                setActiveTab('dispensary');
+              }}
+              className="px-3 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition-colors"
+            >
+              <Pill className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? 'ডিসপেনসারিতে পাঠান' : 'Open in Dispensary'}</span>
+            </button>
             <button
               onClick={handlePrint}
               className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md shadow-cyan-600/30 flex items-center space-x-1.5"

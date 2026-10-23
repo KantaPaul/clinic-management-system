@@ -6,6 +6,7 @@ export interface Translations {
     doctor: string;
     receptionist: string;
     accountant: string;
+    dispenser: string;
   };
   nav: {
     dashboard: string;
@@ -13,6 +14,8 @@ export interface Translations {
     patients: string;
     doctors: string;
     consultation: string;
+    dispensary: string;
+    researchPlan: string;
     billing: string;
     reports: string;
     auditLogs: string;
@@ -224,6 +227,7 @@ export const translations: Record<'en' | 'bn', Translations> = {
       doctor: 'Doctor',
       receptionist: 'Receptionist',
       accountant: 'Accountant',
+      dispenser: 'Dispenser / Pharmacist',
     },
     nav: {
       dashboard: 'Dashboard',
@@ -231,6 +235,8 @@ export const translations: Record<'en' | 'bn', Translations> = {
       patients: 'Patient Directory',
       doctors: 'Doctor Roster',
       consultation: 'Doctor Chamber',
+      dispensary: 'Dispensary & Pharmacy',
+      researchPlan: 'Research Plan (0a82bd6e)',
       billing: 'Billing & Invoices',
       reports: 'Reports & Day Close',
       auditLogs: 'Audit Trail',
@@ -440,6 +446,7 @@ export const translations: Record<'en' | 'bn', Translations> = {
       doctor: 'চিকিৎসক (ডাক্তার)',
       receptionist: 'রিসেপশনিস্ট',
       accountant: 'অ্যাকাউন্ট্যান্ট (ক্যাশিয়ার)',
+      dispenser: 'ডিসপেনসার (ফার্মাসিস্ট)',
     },
     nav: {
       dashboard: 'ড্যাশবোর্ড',
@@ -447,6 +454,8 @@ export const translations: Record<'en' | 'bn', Translations> = {
       patients: 'রোগীর তালিকা',
       doctors: 'ডাক্তার রোস্টার',
       consultation: 'ডাক্তার চেম্বার (প্রেসক্রিপশন)',
+      dispensary: 'ডিসপেনসারি ও ফার্মেসি',
+      researchPlan: 'গবেষণা পরিকল্পনা (0a82bd6e)',
       billing: 'বিলিং ও মানি রিসিট',
       reports: 'রিপোর্ট ও ডে-ক্লোজ',
       auditLogs: 'অডিট হিস্ট্রি',

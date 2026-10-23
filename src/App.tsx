@@ -11,6 +11,8 @@ import { BillingManager } from './components/billing/BillingManager';
 import { ReportsView } from './components/reports/ReportsView';
 import { AuditLogViewer } from './components/audit/AuditLogViewer';
 import { SettingsView } from './components/settings/SettingsView';
+import { DispensaryManager } from './components/dispensary/DispensaryManager';
+import { ResearchPlanView } from './components/research/ResearchPlanView';
 
 // Modals
 import { WalkInSerialModal } from './components/modals/WalkInSerialModal';
@@ -68,6 +70,10 @@ const MainLayout: React.FC = () => {
         );
       case 'consultation':
         return <ConsultationRoom />;
+      case 'dispensary':
+        return <DispensaryManager />;
+      case 'researchPlan':
+        return <ResearchPlanView />;
       case 'patients':
         return <PatientList onOpenPatientModal={() => setShowPatientModal(true)} />;
       case 'doctors':

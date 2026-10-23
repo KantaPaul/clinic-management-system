@@ -1,6 +1,6 @@
 {
-  "name": "MediChamber - Outpatient Clinic Management System",
-  "description": "Production-ready outpatient clinic management system featuring multi-role access, queue & serial scheduling, doctor encounters with Bengali/English prescriptions, billing with bKash/Nagad references, and audit logs.",
+  "name": "MediChamber - Clinic & Integrated Dispensary Management System",
+  "description": "Outpatient clinic and in-house dispensary management system with prescription-to-dispense audit trail, batch FEFO inventory, partial dispensing, strip-to-tablet conversions, and billing.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

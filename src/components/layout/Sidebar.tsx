@@ -12,6 +12,8 @@ import {
   Settings,
   Clock,
   Sparkles,
+  Pill,
+  Compass,
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -36,7 +38,7 @@ export const Sidebar: React.FC = () => {
       id: 'dashboard',
       label: t.nav.dashboard,
       icon: LayoutDashboard,
-      allowedRoles: ['admin', 'doctor', 'receptionist', 'accountant'],
+      allowedRoles: ['admin', 'doctor', 'receptionist', 'accountant', 'dispenser'],
     },
     {
       id: 'queue',
@@ -50,6 +52,12 @@ export const Sidebar: React.FC = () => {
       label: t.nav.consultation,
       icon: Stethoscope,
       allowedRoles: ['admin', 'doctor'],
+    },
+    {
+      id: 'dispensary',
+      label: t.nav.dispensary,
+      icon: Pill,
+      allowedRoles: ['admin', 'dispenser', 'doctor', 'accountant'],
     },
     {
       id: 'patients',
@@ -67,7 +75,7 @@ export const Sidebar: React.FC = () => {
       id: 'billing',
       label: t.nav.billing,
       icon: Receipt,
-      allowedRoles: ['admin', 'accountant', 'receptionist'],
+      allowedRoles: ['admin', 'accountant', 'receptionist', 'dispenser'],
     },
     {
       id: 'reports',
@@ -79,7 +87,13 @@ export const Sidebar: React.FC = () => {
       id: 'audit',
       label: t.nav.auditLogs,
       icon: ShieldAlert,
-      allowedRoles: ['admin'],
+      allowedRoles: ['admin', 'dispenser'],
+    },
+    {
+      id: 'researchPlan',
+      label: t.nav.researchPlan,
+      icon: Compass,
+      allowedRoles: ['admin', 'doctor', 'receptionist', 'accountant', 'dispenser'],
     },
     {
       id: 'settings',

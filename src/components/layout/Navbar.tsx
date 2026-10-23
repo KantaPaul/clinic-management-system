@@ -8,6 +8,9 @@ import {
   Clock,
   ShieldCheck,
   ChevronDown,
+  Bell,
+  AlertTriangle,
+  Pill,
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -21,10 +24,14 @@ export const Navbar: React.FC = () => {
     setLanguage,
     t,
     resetToMockData,
+    batches,
+    medicines,
+    setActiveTab,
   } = useClinic();
 
   const [currentTime, setCurrentTime] = useState<string>('');
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
@@ -44,11 +51,32 @@ export const Navbar: React.FC = () => {
     return () => clearInterval(interval);
   }, [language]);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const lowStockItems = (medicines || []).filter(med => {
+    const valid = (batches || []).filter(
+      b => b.medicineId === med.id &&
+           b.status !== 'expired' &&
+           b.status !== 'quarantined' &&
+           b.status !== 'blocked' &&
+           b.expiryDate >= todayStr
+    );
+    const total = valid.reduce((sum, b) => sum + b.currentQuantity, 0);
+    return total < (med.reorderLevelBaseUnits || 50);
+  });
+
+  const nearExpiryBatches = (batches || []).filter(
+    b => b.status === 'near_expiry' || (b.expiryDate >= todayStr && (new Date(b.expiryDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24) <= 30)
+  );
+
+  const totalAlertCount = lowStockItems.length + nearExpiryBatches.length;
+
   const roleColors: Record<UserRole, string> = {
     admin: 'bg-rose-50 text-rose-700 border-rose-200',
     doctor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     receptionist: 'bg-sky-50 text-sky-700 border-sky-200',
     accountant: 'bg-amber-50 text-amber-700 border-amber-200',
+    dispenser: 'bg-purple-50 text-purple-700 border-purple-200',
   };
 
   return (
@@ -108,6 +136,103 @@ export const Navbar: React.FC = () => {
               >
                 বাংলা
               </button>
+            </div>
+
+            {/* Dispensary Low-Stock Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotificationMenu(!showNotificationMenu)}
+                className="relative p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                title="Dispensary Inventory Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {totalAlertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white font-mono font-bold text-[10px] flex items-center justify-center shadow-xs">
+                    {totalAlertCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotificationMenu && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 text-xs">
+                  <div className="px-3 pb-2 border-b border-slate-100 flex items-center justify-between">
+                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{language === 'bn' ? 'ডিসপেনসারি ইনভেন্টরি সতর্কতা' : 'Dispensary Stock Alerts'}</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                      {totalAlertCount} Warnings
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 px-1 py-1">
+                    {lowStockItems.length === 0 && nearExpiryBatches.length === 0 ? (
+                      <div className="py-6 text-center text-slate-400 text-xs">
+                        All dispensary items are above safety thresholds.
+                      </div>
+                    ) : (
+                      <>
+                        {lowStockItems.map(med => {
+                          const valid = (batches || []).filter(
+                            b => b.medicineId === med.id &&
+                                 b.status !== 'expired' &&
+                                 b.status !== 'quarantined' &&
+                                 b.status !== 'blocked' &&
+                                 b.expiryDate >= todayStr
+                          );
+                          const total = valid.reduce((sum, b) => sum + b.currentQuantity, 0);
+                          const target = med.reorderLevelBaseUnits || 50;
+
+                          return (
+                            <div key={med.id} className="p-2.5 hover:bg-slate-50 rounded-lg transition-colors">
+                              <div className="flex items-center justify-between font-semibold text-slate-800">
+                                <span>{med.brandName} {med.strength}</span>
+                                <span className="font-mono text-amber-700 font-bold">
+                                  {total} / {target} u
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 flex items-center justify-between">
+                                <span>Safety buffer breached</span>
+                                <span className="text-rose-600 font-medium font-mono">Deficit: +{Math.max(0, target - total)} u</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {nearExpiryBatches.map(b => (
+                          <div key={b.id} className="p-2.5 hover:bg-slate-50 rounded-lg transition-colors">
+                            <div className="flex items-center justify-between font-semibold text-slate-800">
+                              <span>{b.brandName} ({b.lotNumber})</span>
+                              <span className="text-[10px] font-semibold text-rose-600">Near Expiry</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Expires on {b.expiryDate} · {b.currentQuantity} units
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="px-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setShowNotificationMenu(false);
+                        setActiveTab('dispensary');
+                      }}
+                      className="text-xs font-semibold text-purple-700 hover:text-purple-800 hover:underline"
+                    >
+                      Open Dispensary Workspace →
+                    </button>
+                    <button
+                      onClick={() => setShowNotificationMenu(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* User Role Switcher Dropdown */}

@@ -1,18 +1,1 @@
 @import "tailwindcss";
-
-@media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
-  header, aside, .print\:hidden {
-    display: none !important;
-  }
-  #prescription-paper, #receipt-paper {
-    box-shadow: none !important;
-    border: none !important;
-    padding: 10mm !important;
-    margin: 0 auto !important;
-    width: 100% !important;
-  }
-}

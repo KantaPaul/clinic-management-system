@@ -12,7 +12,12 @@ import {
   AuditLog,
   AppointmentStatus,
   PaymentMethod,
+  MedicineBatch,
+  GoodsReceiptNote,
+  DispenseRecord,
+  DispenseItem,
 } from '../types';
+import { parseDispensaryBarcode, ParsedBarcode } from '../utils/barcodeUtils';
 import {
   initialClinicSettings,
   initialUsers,
@@ -24,6 +29,11 @@ import {
   initialInvoices,
   initialAuditLogs,
 } from '../data/mockData';
+import {
+  initialMedicineBatches,
+  initialGoodsReceiptNotes,
+  initialDispenseRecords,
+} from '../data/dispensaryData';
 import { initialPrescriptionTemplates } from '../data/prescriptionTemplatesData';
 import { translations, Translations } from '../i18n/translations';
 
@@ -67,6 +77,32 @@ interface ClinicContextType {
   }) => { success: boolean; error?: string; invoice?: Invoice };
   auditLogs: AuditLog[];
   addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp' | 'userId' | 'userName' | 'userRole'>) => void;
+  // Dispensary & FEFO Inventory (Plan 0a82bd6e)
+  batches: MedicineBatch[];
+  addBatch: (batch: Omit<MedicineBatch, 'id'>) => MedicineBatch;
+  updateBatch: (id: string, updates: Partial<MedicineBatch>) => void;
+  adjustBatchStock: (batchId: string, newQuantity: number, reason: string) => void;
+  quickRestockBatch: (batchId: string, additionalUnits: number, notes?: string) => void;
+  toggleBatchQuarantine: (batchId: string, reason?: string) => void;
+  findInventoryByBarcode: (scannedText: string) => {
+    medicine?: MedicineCatalogItem;
+    batch?: MedicineBatch;
+    matchingBatches: MedicineBatch[];
+    prescription?: Prescription;
+    parsed: ParsedBarcode;
+  };
+  getFefoBatchForMedicine: (medicineId: string) => MedicineBatch | undefined;
+  goodsReceiptNotes: GoodsReceiptNote[];
+  createGoodsReceipt: (grn: Omit<GoodsReceiptNote, 'id' | 'grnNumber'>) => GoodsReceiptNote;
+  dispenseRecords: DispenseRecord[];
+  processDispense: (dispenseData: {
+    prescriptionId: string;
+    patientId: string;
+    doctorId: string;
+    items: DispenseItem[];
+    notes?: string;
+    createConsolidatedInvoice?: boolean;
+  }) => { success: boolean; dispenseRecord?: DispenseRecord; invoice?: Invoice; error?: string };
   activeTab: string;
   setActiveTab: (tab: string) => void;
   language: 'en' | 'bn';
@@ -90,6 +126,9 @@ const STORAGE_KEYS = {
   INVOICES: 'medichamber_invoices_v1',
   AUDIT_LOGS: 'medichamber_audit_logs_v1',
   LANGUAGE: 'medichamber_language_v1',
+  BATCHES: 'medichamber_batches_v1',
+  GRN: 'medichamber_grn_v1',
+  DISPENSE: 'medichamber_dispense_v1',
 };
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
@@ -162,6 +201,22 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : initialAuditLogs;
   });
 
+  // Dispensary & FEFO Inventory states
+  const [batches, setBatches] = useState<MedicineBatch[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.BATCHES);
+    return saved ? JSON.parse(saved) : initialMedicineBatches;
+  });
+
+  const [goodsReceiptNotes, setGoodsReceiptNotes] = useState<GoodsReceiptNote[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.GRN);
+    return saved ? JSON.parse(saved) : initialGoodsReceiptNotes;
+  });
+
+  const [dispenseRecords, setDispenseRecords] = useState<DispenseRecord[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DISPENSE);
+    return saved ? JSON.parse(saved) : initialDispenseRecords;
+  });
+
   const [language, setLanguageState] = useState<'en' | 'bn'>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.LANGUAGE);
     return (saved === 'bn' || saved === 'en') ? saved : 'en';
@@ -210,6 +265,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
   }, [auditLogs]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.BATCHES, JSON.stringify(batches));
+  }, [batches]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.GRN, JSON.stringify(goodsReceiptNotes));
+  }, [goodsReceiptNotes]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.DISPENSE, JSON.stringify(dispenseRecords));
+  }, [dispenseRecords]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.LANGUAGE, language);
@@ -555,6 +622,386 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveTab('consultation');
   };
 
+  // Dispensary & FEFO Inventory Implementation
+  const getFefoBatchForMedicine = (medicineId: string): MedicineBatch | undefined => {
+    const today = new Date().toISOString().split('T')[0];
+    const validBatches = batches.filter(
+      b => b.medicineId === medicineId &&
+           b.status !== 'expired' &&
+           b.status !== 'quarantined' &&
+           b.status !== 'blocked' &&
+           b.currentQuantity > 0 &&
+           b.expiryDate >= today
+    );
+    if (validBatches.length === 0) return undefined;
+    return validBatches.sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))[0];
+  };
+
+  const addBatch = (batchData: Omit<MedicineBatch, 'id'>): MedicineBatch => {
+    const newId = `BAT-2026-${String(batches.length + 1).padStart(3, '0')}`;
+    const newBatch: MedicineBatch = {
+      ...batchData,
+      id: newId,
+    };
+    setBatches(prev => [newBatch, ...prev]);
+    logAction('create', 'batch', `Added batch ${newBatch.lotNumber} for ${newBatch.brandName} (${newBatch.currentQuantity} base units)`);
+    return newBatch;
+  };
+
+  const updateBatch = (id: string, updates: Partial<MedicineBatch>) => {
+    setBatches(prev =>
+      prev.map(b => (b.id === id ? { ...b, ...updates } : b))
+    );
+    logAction('update', 'batch', `Updated batch status/quantity for ${id}`);
+  };
+
+  const adjustBatchStock = (batchId: string, newQuantity: number, reason: string) => {
+    const target = batches.find(b => b.id === batchId);
+    if (!target) return;
+    const oldQty = target.currentQuantity;
+    const diff = newQuantity - oldQty;
+    const sign = diff >= 0 ? `+${diff}` : `${diff}`;
+    const safeQty = Math.max(0, Math.round(newQuantity));
+
+    setBatches(prev =>
+      prev.map(b => (b.id === batchId ? { ...b, currentQuantity: safeQty } : b))
+    );
+    logAction(
+      'update',
+      'batch',
+      `Manual Stock Adjustment for ${target.brandName} (${target.lotNumber}): ${oldQty} -> ${safeQty} base units (${sign} u). Reason: ${reason}`
+    );
+  };
+
+  const quickRestockBatch = (batchId: string, additionalUnits: number, notes?: string) => {
+    const target = batches.find(b => b.id === batchId);
+    if (!target || additionalUnits <= 0) return;
+    const newQty = target.currentQuantity + Math.round(additionalUnits);
+
+    setBatches(prev =>
+      prev.map(b =>
+        b.id === batchId
+          ? {
+              ...b,
+              currentQuantity: newQty,
+              status: b.status === 'expired' ? 'expired' : 'active',
+            }
+          : b
+      )
+    );
+    logAction(
+      'goods_receipt',
+      'batch',
+      `Quick Restock of +${additionalUnits} units for ${target.brandName} (${target.lotNumber}). New Total: ${newQty} base units.${notes ? ` Note: ${notes}` : ''}`
+    );
+  };
+
+  const toggleBatchQuarantine = (batchId: string, reason?: string) => {
+    const target = batches.find(b => b.id === batchId);
+    if (!target) return;
+    const newStatus = target.status === 'quarantined' ? 'active' : 'quarantined';
+
+    setBatches(prev =>
+      prev.map(b => (b.id === batchId ? { ...b, status: newStatus } : b))
+    );
+    logAction(
+      'update',
+      'batch',
+      `Batch ${target.lotNumber} (${target.brandName}) status changed to ${newStatus.toUpperCase()}.${reason ? ` Reason: ${reason}` : ''}`
+    );
+  };
+
+  const findInventoryByBarcode = (scannedText: string) => {
+    const parsed = parseDispensaryBarcode(scannedText);
+    const query = scannedText.trim().toLowerCase();
+
+    // 1. Direct prescription match
+    if (parsed.prescriptionId) {
+      const rx = prescriptions.find(
+        p => p.id.toLowerCase() === parsed.prescriptionId!.toLowerCase()
+      );
+      if (rx) return { prescription: rx, parsed, matchingBatches: [] };
+    }
+
+    // 2. Exact Batch match by Lot Number or Batch ID
+    if (parsed.lotNumber) {
+      const targetLot = parsed.lotNumber.toLowerCase();
+      const directBatch = batches.find(
+        b =>
+          b.lotNumber.toLowerCase() === targetLot ||
+          b.id.toLowerCase() === targetLot ||
+          (b.barcode && b.barcode.toLowerCase() === targetLot)
+      );
+      if (directBatch) {
+        const med = medicines.find(m => m.id === directBatch.medicineId);
+        const siblings = batches.filter(b => b.medicineId === directBatch.medicineId);
+        return { medicine: med, batch: directBatch, matchingBatches: siblings, parsed };
+      }
+    }
+
+    // 3. Medicine match by GTIN / Barcode
+    if (parsed.gtin || parsed.medicineId) {
+      const targetCode = (parsed.gtin || parsed.medicineId)!.toLowerCase();
+      const med = medicines.find(
+        m =>
+          (m.barcode && m.barcode.toLowerCase() === targetCode) ||
+          m.id.toLowerCase() === targetCode
+      );
+      if (med) {
+        const matching = batches.filter(b => b.medicineId === med.id);
+        const fefoBatch = getFefoBatchForMedicine(med.id) || matching[0];
+        return { medicine: med, batch: fefoBatch, matchingBatches: matching, parsed };
+      }
+    }
+
+    // 4. Fuzzy fallback search across lot, barcode, id, brandName
+    const batchByLot = batches.find(
+      b =>
+        b.lotNumber.toLowerCase().includes(query) ||
+        b.id.toLowerCase() === query ||
+        (b.barcode && b.barcode.toLowerCase() === query)
+    );
+    if (batchByLot) {
+      const med = medicines.find(m => m.id === batchByLot.medicineId);
+      const siblings = batches.filter(b => b.medicineId === batchByLot.medicineId);
+      return { medicine: med, batch: batchByLot, matchingBatches: siblings, parsed };
+    }
+
+    const medByCode = medicines.find(
+      m =>
+        (m.barcode && m.barcode.toLowerCase() === query) ||
+        m.id.toLowerCase() === query ||
+        m.brandName.toLowerCase().includes(query)
+    );
+    if (medByCode) {
+      const matching = batches.filter(b => b.medicineId === medByCode.id);
+      const fefoBatch = getFefoBatchForMedicine(medByCode.id) || matching[0];
+      return { medicine: medByCode, batch: fefoBatch, matchingBatches: matching, parsed };
+    }
+
+    // Check prescriptions for fallback
+    const rxFallback = prescriptions.find(p => p.id.toLowerCase().includes(query));
+    if (rxFallback) {
+      return { prescription: rxFallback, parsed, matchingBatches: [] };
+    }
+
+    return { parsed, matchingBatches: [] };
+  };
+
+  const createGoodsReceipt = (grnData: Omit<GoodsReceiptNote, 'id' | 'grnNumber'>): GoodsReceiptNote => {
+    const newGrnNum = `GRN-2026-${String(goodsReceiptNotes.length + 1).padStart(3, '0')}`;
+    const newGRN: GoodsReceiptNote = {
+      ...grnData,
+      id: newGrnNum,
+      grnNumber: newGrnNum,
+    };
+
+    // Idempotent stock intake: increase existing batch or create new batch for each item
+    setBatches(prevBatches => {
+      const updated = [...prevBatches];
+      grnData.items.forEach(item => {
+        const existingIdx = updated.findIndex(
+          b => b.medicineId === item.medicineId && b.lotNumber.toLowerCase() === item.lotNumber.toLowerCase()
+        );
+        if (existingIdx >= 0) {
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            currentQuantity: updated[existingIdx].currentQuantity + item.totalBaseUnits,
+            status: 'active',
+          };
+        } else {
+          updated.push({
+            id: `BAT-2026-${String(updated.length + 1).padStart(3, '0')}`,
+            medicineId: item.medicineId,
+            brandName: item.brandName,
+            genericName: item.genericName,
+            lotNumber: item.lotNumber,
+            manufacturingDate: item.manufacturingDate,
+            expiryDate: item.expiryDate,
+            costPerBaseUnit: item.costPerPack / item.unitsPerPack,
+            retailPricePerBaseUnit: item.retailPricePerBaseUnit || 5.0,
+            initialQuantity: item.totalBaseUnits,
+            currentQuantity: item.totalBaseUnits,
+            status: 'active',
+            goodsReceiptId: newGRN.id,
+            supplierName: grnData.supplierName,
+          });
+        }
+      });
+      return updated;
+    });
+
+    setGoodsReceiptNotes(prev => [newGRN, ...prev]);
+    logAction(
+      'goods_receipt',
+      'goods_receipt',
+      `Received GRN #${newGRN.grnNumber} from ${newGRN.supplierName} (${grnData.items.length} items, Total: ৳${newGRN.totalAmount})`
+    );
+    return newGRN;
+  };
+
+  const processDispense = (data: {
+    prescriptionId: string;
+    patientId: string;
+    doctorId: string;
+    items: DispenseItem[];
+    notes?: string;
+    createConsolidatedInvoice?: boolean;
+  }): { success: boolean; dispenseRecord?: DispenseRecord; invoice?: Invoice; error?: string } => {
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1. Rigorous validation against expired or blocked lots
+    for (const item of data.items) {
+      if (item.dispensedBaseQuantity <= 0) continue;
+      const batch = batches.find(b => b.id === item.selectedBatchId);
+      if (!batch) {
+        return { success: false, error: `Batch not found for ${item.brandName}` };
+      }
+      if (batch.status === 'expired' || batch.expiryDate < today) {
+        return {
+          success: false,
+          error: `Batch ${batch.lotNumber} for ${item.brandName} is EXPIRED (Expired: ${batch.expiryDate}) and cannot be dispensed.`,
+        };
+      }
+      if (batch.status === 'quarantined' || batch.status === 'blocked') {
+        return {
+          success: false,
+          error: `Batch ${batch.lotNumber} for ${item.brandName} is ${batch.status.toUpperCase()} and locked from dispensing.`,
+        };
+      }
+      if (batch.currentQuantity < item.dispensedBaseQuantity) {
+        return {
+          success: false,
+          error: `Insufficient stock in batch ${batch.lotNumber} for ${item.brandName}. Available: ${batch.currentQuantity}, Requested: ${item.dispensedBaseQuantity}`,
+        };
+      }
+    }
+
+    const patient = patients.find(p => p.id === data.patientId);
+    const doctor = doctors.find(d => d.id === data.doctorId);
+    const dispenseNum = `DSP-2026-${String(dispenseRecords.length + 1).padStart(3, '0')}`;
+    const totalAmount = data.items.reduce((sum, item) => sum + item.totalPrice, 0);
+
+    const isPartial = data.items.some(it => it.dispensedBaseQuantity < it.prescribedBaseQuantity);
+
+    const newRecord: DispenseRecord = {
+      id: dispenseNum,
+      dispenseNumber: dispenseNum,
+      prescriptionId: data.prescriptionId,
+      appointmentId: '',
+      patientId: data.patientId,
+      patientName: patient ? patient.name : 'Unknown Patient',
+      doctorId: data.doctorId,
+      doctorName: doctor ? doctor.name : 'Chamber Doctor',
+      dispensedByUserId: currentUser.id,
+      dispensedByName: currentUser.name,
+      dispensedAt: new Date().toISOString(),
+      status: isPartial ? 'partially_dispensed' : 'fully_dispensed',
+      items: data.items,
+      totalMedicineAmount: totalAmount,
+      notes: data.notes,
+    };
+
+    // 2. Deduct batch inventory
+    setBatches(prev => {
+      const copy = [...prev];
+      data.items.forEach(item => {
+        if (item.dispensedBaseQuantity <= 0) return;
+        const idx = copy.findIndex(b => b.id === item.selectedBatchId);
+        if (idx >= 0) {
+          copy[idx] = {
+            ...copy[idx],
+            currentQuantity: Math.max(0, copy[idx].currentQuantity - item.dispensedBaseQuantity),
+          };
+        }
+      });
+      return copy;
+    });
+
+    let createdInvoice: Invoice | undefined;
+
+    // 3. Consolidated billing integration
+    if (data.createConsolidatedInvoice !== false && totalAmount > 0) {
+      const existingInvoice = invoices.find(
+        inv => inv.patientId === data.patientId && inv.paymentStatus !== 'paid'
+      );
+
+      const medicineInvoiceItems = data.items
+        .filter(it => it.dispensedBaseQuantity > 0)
+        .map(it => ({
+          id: `inv-med-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          description: `${it.brandName} ${it.strength} (${it.dispensedPacks > 0 ? `${it.dispensedPacks} ${it.packagingUnit}` : ''}${it.dispensedLooseUnits > 0 ? ` + ${it.dispensedLooseUnits} loose` : ''}) - Lot: ${it.batchLotNumber}`,
+          descriptionBn: `${it.brandName} ${it.strength} - লট: ${it.batchLotNumber}`,
+          quantity: it.dispensedBaseQuantity,
+          unitPrice: it.unitPrice,
+          total: it.totalPrice,
+          type: 'dispensed_medicine' as const,
+          dispenseId: newRecord.id,
+          batchLotNumber: it.batchLotNumber,
+        }));
+
+      if (existingInvoice) {
+        const updatedItems = [...existingInvoice.items, ...medicineInvoiceItems];
+        const newSubtotal = updatedItems.reduce((acc, it) => acc + it.total, 0);
+        const newGrandTotal = Math.max(0, newSubtotal - existingInvoice.discountAmount + existingInvoice.taxAmount);
+        const newDue = Math.max(0, newGrandTotal - existingInvoice.paidAmount);
+
+        const updatedInv: Invoice = {
+          ...existingInvoice,
+          items: updatedItems,
+          subtotal: newSubtotal,
+          grandTotal: newGrandTotal,
+          dueAmount: newDue,
+          dispenseId: newRecord.id,
+          paymentStatus: newDue === 0 ? 'paid' : (existingInvoice.paidAmount > 0 ? 'partial' : 'due'),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setInvoices(prev => prev.map(inv => inv.id === existingInvoice.id ? updatedInv : inv));
+        newRecord.invoiceId = existingInvoice.id;
+        createdInvoice = updatedInv;
+      } else {
+        const invId = `INV-2026-${String(invoices.length + 1).padStart(3, '0')}`;
+        const newInv: Invoice = {
+          id: invId,
+          patientId: data.patientId,
+          doctorId: data.doctorId,
+          dispenseId: newRecord.id,
+          date: new Date().toISOString().split('T')[0],
+          items: medicineInvoiceItems,
+          subtotal: totalAmount,
+          discountAmount: 0,
+          taxAmount: 0,
+          grandTotal: totalAmount,
+          paidAmount: 0,
+          dueAmount: totalAmount,
+          paymentStatus: 'due',
+          transactions: [],
+          notes: `Prescription Dispense #${dispenseNum}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setInvoices(prev => [newInv, ...prev]);
+        newRecord.invoiceId = invId;
+        createdInvoice = newInv;
+      }
+    }
+
+    setDispenseRecords(prev => [newRecord, ...prev]);
+    logAction(
+      'dispense',
+      'dispensary',
+      `Dispensed #${newRecord.dispenseNumber} for ${patient?.name || 'Patient'} (${isPartial ? 'PARTIAL' : 'FULL'}, Total: ৳${totalAmount})`
+    );
+
+    return {
+      success: true,
+      dispenseRecord: newRecord,
+      invoice: createdInvoice,
+    };
+  };
+
   const resetToMockData = () => {
     setSettings(initialClinicSettings);
     setCurrentUser(initialUsers[0]);
@@ -566,6 +1013,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPrescriptionTemplates(initialPrescriptionTemplates);
     setInvoices(initialInvoices);
     setAuditLogs(initialAuditLogs);
+    setBatches(initialMedicineBatches);
+    setGoodsReceiptNotes(initialGoodsReceiptNotes);
+    setDispenseRecords(initialDispenseRecords);
     setLanguageState('en');
     setSelectedAppointmentForConsultation(null);
 
@@ -602,6 +1052,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         recordPayment,
         auditLogs,
         addAuditLog,
+        batches,
+        addBatch,
+        updateBatch,
+        adjustBatchStock,
+        quickRestockBatch,
+        toggleBatchQuarantine,
+        findInventoryByBarcode,
+        getFefoBatchForMedicine,
+        goodsReceiptNotes,
+        createGoodsReceipt,
+        dispenseRecords,
+        processDispense,
         activeTab,
         setActiveTab,
         language,

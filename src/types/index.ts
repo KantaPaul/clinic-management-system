@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'doctor' | 'receptionist' | 'accountant';
+export type UserRole = 'admin' | 'doctor' | 'receptionist' | 'accountant' | 'dispenser';
 
 export interface User {
   id: string;
@@ -144,6 +144,110 @@ export interface MedicineCatalogItem {
   category: string;
   defaultSchedule?: string;
   defaultMealTiming?: 'before_meal' | 'after_meal' | 'with_meal' | 'empty_stomach';
+  baseUnit?: string;          // e.g. "Tablet", "Capsule", "Bottle"
+  packagingUnit?: string;     // e.g. "Strip (10 tabs)", "Box (100 tabs)", "Bottle"
+  unitsPerPack?: number;      // e.g. 10 or 14 (integer conversion)
+  allowFractionalDispense?: boolean; // false for tablets/capsules as per plan
+  costPerPack?: number;
+  retailPricePerPack?: number;
+  retailPricePerBaseUnit?: number;
+  reorderLevelBaseUnits?: number;
+  currentStockBaseUnits?: number;
+  barcode?: string;           // EAN-13, UPC, or custom SKU barcode (e.g. "894110023451")
+}
+
+export type BatchStatus = 'active' | 'near_expiry' | 'expired' | 'quarantined' | 'blocked';
+
+export interface MedicineBatch {
+  id: string;                // e.g. "BAT-2026-001"
+  medicineId: string;
+  brandName: string;
+  genericName: string;
+  lotNumber: string;         // e.g. "LOT-SQ-9842"
+  manufacturingDate: string; // YYYY-MM-DD
+  expiryDate: string;        // YYYY-MM-DD (Used for FEFO sorting)
+  costPerBaseUnit: number;
+  retailPricePerBaseUnit: number;
+  initialQuantity: number;   // base units
+  currentQuantity: number;   // base units
+  status: BatchStatus;
+  barcode?: string;          // Specific batch/lot barcode or GS1 DataMatrix string
+  goodsReceiptId?: string;
+  supplierName?: string;
+  notes?: string;
+}
+
+export interface GoodsReceiptItem {
+  medicineId: string;
+  brandName: string;
+  genericName: string;
+  lotNumber: string;
+  manufacturingDate: string;
+  expiryDate: string;
+  packQuantity: number;
+  unitsPerPack: number;
+  totalBaseUnits: number;
+  costPerPack: number;
+  totalCost: number;
+  retailPricePerBaseUnit: number;
+}
+
+export interface GoodsReceiptNote {
+  id: string;                // e.g. "GRN-2026-001"
+  grnNumber: string;
+  supplierName: string;
+  supplierInvoiceNo: string;
+  receivedDate: string;
+  receivedByUserId: string;
+  receivedByName: string;
+  status: 'received' | 'partial' | 'verified';
+  items: GoodsReceiptItem[];
+  totalAmount: number;
+  paymentStatus: 'paid' | 'credit';
+  notes?: string;
+}
+
+export interface DispenseItem {
+  prescribedMedicineId: string;
+  medicineId: string;
+  brandName: string;
+  genericName: string;
+  dosageForm: string;
+  strength: string;
+  dosageSchedule: string;
+  duration: string;
+  prescribedBaseQuantity: number; // e.g. 20 tablets
+  dispensedBaseQuantity: number;  // e.g. 10 tablets (partial dispense!)
+  packagingUnit: string;          // e.g. "Strip"
+  unitsPerPack: number;           // e.g. 10
+  dispensedPacks: number;         // e.g. 1 strip
+  dispensedLooseUnits: number;    // e.g. 0 loose tablets
+  selectedBatchId: string;
+  batchLotNumber: string;
+  batchExpiryDate: string;
+  unitPrice: number;              // per base unit
+  totalPrice: number;
+  fefoSelected: boolean;
+  partialReason?: string;
+}
+
+export interface DispenseRecord {
+  id: string;                     // e.g. "DSP-2026-001"
+  dispenseNumber: string;
+  prescriptionId: string;
+  appointmentId: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  dispensedByUserId: string;
+  dispensedByName: string;
+  dispensedAt: string;
+  status: 'pending' | 'partially_dispensed' | 'fully_dispensed' | 'cancelled';
+  items: DispenseItem[];
+  totalMedicineAmount: number;
+  invoiceId?: string;
+  notes?: string;
 }
 
 export type PaymentMethod = 'cash' | 'bkash' | 'nagad' | 'card';
@@ -156,6 +260,9 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  type?: 'consultation' | 'dispensed_medicine' | 'investigation' | 'service';
+  dispenseId?: string;
+  batchLotNumber?: string;
 }
 
 export interface PaymentTransaction {
@@ -173,6 +280,7 @@ export interface Invoice {
   appointmentId?: string;
   patientId: string;
   doctorId?: string;
+  dispenseId?: string;           // One invoice carrying consultation + dispensary lines!
   date: string;
   items: InvoiceItem[];
   subtotal: number;
@@ -195,8 +303,8 @@ export interface AuditLog {
   userId: string;
   userName: string;
   userRole: UserRole;
-  action: 'create' | 'update' | 'delete' | 'check_in' | 'complete' | 'payment_received' | 'login';
-  entity: 'appointment' | 'patient' | 'doctor' | 'prescription' | 'invoice' | 'settings' | 'auth';
+  action: 'create' | 'update' | 'delete' | 'check_in' | 'complete' | 'payment_received' | 'login' | 'goods_receipt' | 'dispense' | 'fefo_override';
+  entity: 'appointment' | 'patient' | 'doctor' | 'prescription' | 'invoice' | 'settings' | 'auth' | 'dispensary' | 'batch' | 'goods_receipt';
   details: string;
   ipAddress?: string;
 }
