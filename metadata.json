@@ -1,0 +1,6 @@
+{
+  "name": "MediChamber - Outpatient Clinic Management System",
+  "description": "Production-ready outpatient clinic management system featuring multi-role access, queue & serial scheduling, doctor encounters with Bengali/English prescriptions, billing with bKash/Nagad references, and audit logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
